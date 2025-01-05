@@ -3,14 +3,35 @@ use std::time::Duration;
 use crossterm::{
     cursor,
     execute,
-    style::{Print, SetForegroundColor, Color, ResetColor},
+    style::Print,
     terminal::{Clear, ClearType},
 };
 use std::io::stdout;
 use tokio::time;
 use rand::Rng;
 
+// pub : 해당 함수는 pub로써 다른 모듈에서 홏출이 가능함을 의미
+// u64는 부호 없는 64bit
+pub async fn run_pomodoro_timer(work_min: u64, break_min: u64) {
+  // HashMap을 생성함.
+  let ascii_map = get_ascii_art_map();
+
+  loop {
+      println!("\n🟢 Starting 25-minute Work Session...");
+      // 타이머가 동작하는 과정에서 HashMap의 데이터를 참조할 수 있도록 함.
+      run_timer(work_min, &ascii_map, "Work").await;
+
+      println!("\n🟡 Starting 5-minute Break...");
+      run_timer(break_min, &ascii_map, "Break").await;
+  }
+}
+
+// -> 은 반환 타입을 지정함.
+// & : 참조 (값을 빌려온다는 뜻임, 값을 복사하거나 소유권을 옮기는 것이 아닌 원본 데이터에 대한 접근만 허용)
+// 'static : 생애 주기를 나타냄. 데이터가 프로그램 전체 실행 시간동안 유효함을 의미함. (항상 메모리에 남아 있음.)
 fn get_random_motivation() -> &'static str {
+    // vec! 는 동적 배열을 생성하는 매크로입니다.
+    // let은 기본적으로 불변이고 이를 변경하기 위해서는 let mut을 사용해야 함.
     let messages = vec![
         "💀 공부 안 하면, 네 인생은 이미 끝났다. 지금이라도 붙잡아.",
         "🔥 넌 지금 노는 게 편하지? 그 대가로 평생 고통받을 준비는 됐냐?",
@@ -34,14 +55,18 @@ fn get_random_motivation() -> &'static str {
         "💀 실패할 용기가 있냐? 아니면 지금 공부할 용기를 내라.",
     ];
 
-    let mut rng = rand::thread_rng();
-    let index = rng.gen_range(0..messages.len());
-    messages[index]
+    let mut rng = rand::thread_rng(); // 랜덤 생성기를 초기화 진행
+    let index = rng.gen_range(0..messages.len()); // 메시지 길이 내에서 랜덤 숫자를 생성
+    messages[index] // 메시지 반환 (; 없으므로 그냥 반환하는 것)
 }
 
+// HashMap(key-value)을 생성하는 함수
+// char:는 '0', '1', ..., ':' 과 같은 문자
+// 어차피 사용해야되는 데이터이므로 &'static 을 사용하여 메모리로 부터 데이터를 참조한다는 것임. 
 fn get_ascii_art_map() -> HashMap<char, Vec<&'static str>> {
-    let mut map = HashMap::new();
+    let mut map = HashMap::new(); // HashMap을 초기화
 
+    // HashMap에 key에 대응하는 value를 삽입
     map.insert('0', vec![
         "  00000  ",
         " 0     0 ",
@@ -142,22 +167,12 @@ fn get_ascii_art_map() -> HashMap<char, Vec<&'static str>> {
         "         ",
     ]);
 
-    map
+    map // 데이터 삽입 완료 후에 HashMap을 반환
 }
 
-pub async fn run_pomodoro_timer(work_min: u64, break_min: u64) {
-    let ascii_map = get_ascii_art_map();
-
-    loop {
-        println!("\n🟢 Starting 25-minute Work Session...");
-        run_timer(work_min, &ascii_map, "Work").await;
-
-        println!("\n🟡 Starting 5-minute Break...");
-        run_timer(break_min, &ascii_map, "Break").await;
-    }
-}
-
+// sesstion_type은 문자열을 참조하고 있음. 만약 참조를 하지 않고 String을 해버리면 소유권이 이전됨.
 async fn run_timer(minutes: u64, ascii_map: &HashMap<char, Vec<&str>>, session_type: &str) {
+    // let mut은 변경 가능한 변수
     let mut total_seconds = minutes * 60;
 
     let mut current_motivation = get_random_motivation();
@@ -166,23 +181,26 @@ async fn run_timer(minutes: u64, ascii_map: &HashMap<char, Vec<&str>>, session_t
     while total_seconds > 0 {
         let mins = total_seconds / 60;
         let secs = total_seconds % 60;
-        let time_str = format!("{:02}:{:02}", mins, secs);
+        let time_str = format!("{:02}:{:02}", mins, secs); // 2자리로 숫자를 출력하도록 포맷팅.
 
-        let mut stdout = stdout();
+        let mut stdout = stdout(); // 터미널 출력 스트림
 
-        execute!(stdout, cursor::MoveTo(0, 0), Clear(ClearType::All)).unwrap();
+        // 터미널 작업 실행을 위한 매크로 (터미널에 명령을 전달하여 특정 작업을 실행하는 역할)
+        // target은 표준 출력 장치
+        // 다음은 명령어를 작성 (커서 위치를 0,0 좌측 상단으로 이동시킴, 전체화면을 지움)
+        // unwrap() 은 항상 성공할 것이라는 전제 하에 사용. 실패하면 프로그램 패닉 -> 프로그램 강제 종료 (따라서 이거보다 다른 방법을 사용하는 것이 좋음)
+        // execute!(stdout, cursor::MoveTo(0, 0), Clear(ClearType::All)).unwrap(); -> 기존 코드를 아래와 같이 사용하는게 안전
+        if let Err(error) = execute!(stdout, cursor::MoveTo(0, 0), Clear(ClearType::All)){
+          eprintln!("Error Clearing the Terminal: {}", error);
+        }
 
-        execute!(
+        // 색상은 삭제 하였음.
+        if let Err(error) = execute!(
             stdout,
-            SetForegroundColor(if session_type == "Work" {
-                Color::Green
-            } else {
-                Color::Yellow
-            }),
             Print(format!("🔔 {} Timer\n\n", session_type)),
-            ResetColor
-        )
-        .unwrap();
+        ) {
+          eprintln!("Error Start Timer : {}", error);
+        }
 
         if seconds_motivation >= 10 {
           current_motivation = get_random_motivation();
@@ -192,24 +210,23 @@ async fn run_timer(minutes: u64, ascii_map: &HashMap<char, Vec<&str>>, session_t
         println!("{}", current_motivation);
         println!("");
 
+        // 총 7줄 (행)을 순회함.
         for row in 0..7 {
             let mut line = String::new();
+
+            //시간 문자열을 순회함.
             for ch in time_str.chars() {
-                let color = match ch {
-                    '0'..='9' => Color::Blue,
-                    ':' => Color::Red,
-                    _ => Color::White,
-                };
-                execute!(stdout, SetForegroundColor(color)).unwrap();
+                // ascli_map에서 현재 문자(key)에 대한 데이터(value)를 가져옴.
                 if let Some(ascii_art) = ascii_map.get(&ch) {
                     line.push_str(ascii_art[row]);
                     line.push_str("  ");
                 }
             }
-            execute!(stdout, ResetColor).unwrap();
+            // 누적된 데이터를 출력함.
             println!("{}", line);
         }
 
+        // 1초 기다림
         time::sleep(Duration::from_secs(1)).await;
         total_seconds -= 1;
         seconds_motivation += 1;
