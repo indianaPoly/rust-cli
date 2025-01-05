@@ -1,14 +1,17 @@
 use rustyline::{Editor, error::ReadlineError};
 use rustyline::history::DefaultHistory;
-use dotenv::dotenv;
 use std::env;
 
 mod fetch_notice;
 mod pomodoro;
 
+mod lib {
+  pub mod dotenv;
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    dotenv().ok();
+    lib::dotenv::load_env()?;
 
     let telegram_token = env::var("TELEGRAM_TOKEN").expect("TELEGRAM_TOKEN environment variable not set");
     let chat_id = env::var("TELEGRAM_CHAT_ID").expect("TELEGRAM_CHAT_ID environment variable not set");
