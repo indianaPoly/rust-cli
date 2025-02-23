@@ -70,16 +70,6 @@ src/
 └── pomodoro.rs      # 뽀모도로 타이머 구현
 ```
 
-## 기술 스택
-
-- **비동기 처리**: tokio
-- **웹 스크래핑**: reqwest + scraper
-- **터미널 UI**: crossterm
-- **입력 처리**: rustyline
-- **설정 관리**: dotenv
-- **시간 처리**: chrono
-- **데이터 처리**: serde_json
-
 ## 라이선스
 
 MIT License
